@@ -5,7 +5,8 @@ extern "C" {
 #include <NMEAGPS.h>
 #include <string.h>
 #define MAX_MSG 1024
-#define gpsPort Serial2 // just an alias, not a whole new variable
+#define nodeMCU Serial2
+#define gpsPort Serial1 // just an alias, not a whole new variable
 #define DEBUG 0
 int experimento = 0;
 NMEAGPS gps;
@@ -17,14 +18,14 @@ struct datagps // Cria uma STRUCT para armazenar os dados de uma pessoa
   float flon;
   float fvel;
   unsigned long age;
-  char teste[100];
+  char mensagem[100];
 
 };
 typedef struct datagps Datagps;
 void setup() {
-  Serial.begin( 115200 );
-  Serial1.begin(9600);
+  Serial.begin( 9600 );
   gpsPort.begin( 9600 );
+  Serial2.begin(9600);
 }
 
 void loop() {
@@ -35,20 +36,25 @@ void loop() {
   unsigned char decryptedtext[MAX_MSG];
   uint8_t ciphertext[MAX_MSG];
   char plaintext[MAX_MSG];
-  char *mensagem = "Isso e um teste muito serio";
+  Datagps dados, plain;
   int in_len = 0;
   int out_len = MAX_MSG;
-  in_len = strlen(mensagem);
-  Datagps dados, plain;
+  in_len = sizeof(dados);
+  dados.flat = 0.0;
+  dados.flon = 0.0;
+  dados.fvel = 0.0;
+
   if (gps.available( gpsPort )) {
     fix = gps.read();
     dados.flat = fix.latitude();
     dados.flon = fix.longitude();
     dados.fvel = fix.speed_mph();
-
-    
+    strcpy(dados.mensagem, "Dados coletados com sucesso");
 
   }
+  if(dados.flat == 0.0 && dados.flon == 0.0 && dados.fvel == 0.0)
+   strcpy(dados.mensagem, "Falha ao coletar aos dados");
+   
   if (bc_aes_cbc_enc(ciphertext, &out_len, (uint8_t*)&dados, sizeof(dados), key, 32, iv)) {
     if (DEBUG)
       Serial.println("ERRO enc");
@@ -57,6 +63,8 @@ void loop() {
     if (DEBUG)
       Serial.println("Sucesso enc");
   }
+
+    Serial2.write((byte*)&dados, sizeof(plain));
 
   in_len = out_len;
   out_len = in_len;
@@ -69,13 +77,13 @@ void loop() {
       Serial.println("Sucesso dec");
 
   }
-  strcpy(plain.teste,"testando");
-  
 
-  Serial1.write((byte*)&plain, sizeof(plain));
-  Serial.print("Resultado da cifra: "); Serial.println (plain.flat,6);  
 
-  delay(5000);
+
+
+
+
+  delay(500);
 
 
 

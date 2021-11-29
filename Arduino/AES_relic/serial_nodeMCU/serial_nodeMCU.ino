@@ -3,22 +3,9 @@
 
 #include <string.h>
 #define PORT 1234
-#define HOST "172.22.225.116"
-#define SSID "Evaldotania_2G"
-#define PASS "21455151"
-
-struct datagps // Cria uma STRUCT para armazenar os dados de uma pessoa
-{
-  float flat;
-  float flon;
-  float fvel;
-  unsigned long age;
-  char mensagem[100];
-
-};
-typedef struct datagps Datagps;
-
-Datagps dados;
+#define HOST "192.168.0.24"
+#define SSID "HausOfGaga_2G"
+#define PASS "BornThisWay"
 
 SoftwareSerial due(13, 15); // RX = D7, TX  = D8
 
@@ -48,12 +35,22 @@ void setup() {
 }
 
 void loop() {
-  uint8_t *ciphertext;
+  byte ciphertext[1024];
+  byte ciphertextReceived[1024];
+ int teste = 0;
+ 
   if (due.available()) {
-    int teste = due.readBytes((byte*)&ciphertext, 1024);
-
-    client.write((byte*)&ciphertext, sizeof(ciphertext));
+    teste = due.read(ciphertext, 1024);
+    delay(300);
+    client.write(ciphertext, teste);
+    delay(500);
+   
+    if (client.available()) {
+      int tamanho = client.read(ciphertextReceived, 1024);
+      due.write(ciphertextReceived, tamanho);
+    }
 
   }
-
+  delay(5000);
+  ESP.restart();
 }

@@ -4,22 +4,25 @@ extern "C" {
 }
 #include <NMEAGPS.h>
 #include <string.h>
-#define MAX_MSG 1024
+#define MAX_MSG 102400
+#define KEY_LEN 32
 #define nodeMCU Serial2
 #define gpsPort Serial1 // just an alias, not a whole new variable
 #define DEBUG 0
 int experimento = 0;
 NMEAGPS gps;
 gps_fix fix;
+unsigned long t0, t1, t6, t7;
+char save[1024];
+
+void defineKey (uint8_t * key, uint8_t * iv, int key_len);
 
 struct datagps // Cria uma STRUCT para armazenar os dados de uma pessoa
 {
-  float flat;
-  float flon;
-  float fvel;
-  unsigned long age;
-  char mensagem[100];
-
+  float lat;
+  float lon;
+  float ve;
+  uint8_t mensagem[1024];
 };
 typedef struct datagps Datagps;
 void setup() {
@@ -28,65 +31,99 @@ void setup() {
   Serial2.begin(9600);
 }
 
+void defineKey (uint8_t * key, uint8_t * iv, int key_len) {
+
+  memcpy(iv, "0123456789012345", 16);
+
+  if (key_len == 16) {
+
+    memcpy(key, "0123456789012345", 16);
+
+  } else if (key_len == 24) {
+
+    memcpy(key, "012345678901234567890123", 24);
+
+
+  } else if (key_len == 32) {
+
+    memcpy(key, "01234567890123450123456789012345", 32);
+
+  } else {
+
+    printf("Chave inválida");
+
+  }
+}
+
 void loop() {
-  uint8_t key[] = "01234567890123456789012345678901"; // KEY 256 BITS
-  uint8_t iv[] = "01234567890123456789012345678901"; // IV 256 BITS
+  uint8_t *key;
+  uint8_t *iv ;
+
+  defineKey(key, iv, KEY_LEN);
 
   /* Buffer for the decrypted text */
-  unsigned char decryptedtext[MAX_MSG];
+  uint8_t decryptedtext[MAX_MSG];
   uint8_t ciphertext[MAX_MSG];
-  char plaintext[MAX_MSG];
+  uint8_t plaintext[MAX_MSG];
   Datagps dados, plain;
   int in_len = 0;
   int out_len = MAX_MSG;
-  in_len = sizeof(dados);
-  dados.flat = 0.0;
-  dados.flon = 0.0;
-  dados.fvel = 0.0;
+  dados.lat = 0.0;
+  dados.lon = 0.0;
+  dados.ve = 0.0;
 
   if (gps.available( gpsPort )) {
     fix = gps.read();
-    dados.flat = fix.latitude();
-    dados.flon = fix.longitude();
-    dados.fvel = fix.speed_mph();
-    strcpy(dados.mensagem, "Dados coletados com sucesso");
-
+    dados.lat = fix.latitude();
+    dados.lon = fix.longitude();
+    dados.ve = fix.speed_mph();
+    sprintf((char*)dados.mensagem, "latitude: %.6f, longitude: %.6f, velocidade: %.6f e o resto é apenas enchecao de linguica para dar o numero de characteres latitude: %.6f, longitude: %.6f, velocidade: %.6f e o resto é apenas enchecao de linguica para dar o numero de characteres testando", dados.lat, dados.lon, dados.ve, dados.lat, dados.lon, dados.ve);
   }
-  if(dados.flat == 0.0 && dados.flon == 0.0 && dados.fvel == 0.0)
-   strcpy(dados.mensagem, "Falha ao coletar aos dados");
-   
-  if (bc_aes_cbc_enc(ciphertext, &out_len, (uint8_t*)&dados, sizeof(dados), key, 32, iv)) {
+
+  if (dados.lat == 0.0 && dados.lon == 0.0 && dados.ve == 0.0) {
+    sprintf((char*)dados.mensagem, "latitude: %.6f, longitude: %.6f, velocidade: %.6f e o resto é apenas enchecao de linguica para dar o numero de characteres latitude: %.6f, longitude: %.6f, velocidade: %.6f e o resto é apenas enchecao de linguica para dar o numero de characteres testando", dados.lat, dados.lon, dados.ve, dados.lat, dados.lon, dados.ve);
+  }
+  ciphertext[0] = '\0';
+
+  in_len = sizeof(foto2);
+  t0 = micros();
+  if (bc_aes_cbc_enc(ciphertext, &out_len, (uint8_t*)foto2, strlen((char*)dados.mensagem), key, 32, iv)) {
     if (DEBUG)
       Serial.println("ERRO enc");
 
   } else {
     if (DEBUG)
-      Serial.println("Sucesso enc");
+    Serial.println("Sucesso enc");
   }
-
-    Serial2.write((byte*)&dados, sizeof(plain));
+  t1 = micros();
+  uint8_t tamanho[4]; 
+  sprintf((char*)tamanho,"%d",out_len);
+  //Serial2.write(tamanho,4);
+  //delay(200);
+  //Serial2.write(ciphertext, out_len);
 
   in_len = out_len;
   out_len = in_len;
-
-  if (bc_aes_cbc_dec((uint8_t*)&plain, &out_len, ciphertext, in_len, key, 32, iv)) {
+  
+  t6 = micros();
+  if (bc_aes_cbc_dec(plaintext, &out_len, ciphertext, in_len, key, 32, iv)) {
     if (DEBUG)
       Serial.println("ERRO dec");
   } else {
     if (DEBUG)
       Serial.println("Sucesso dec");
-
+    plaintext[out_len] = '\0';
   }
-
-
-
-
-
-
-  delay(500);
-
-
-
-
+  t7 = micros();
+ 
+  if(experimento ==0)
+  Serial.println("arduino key len gps data;t0;t1;t6;t7");
+  
+  sprintf(save,"%d;%u;%u;%u;%u",KEY_LEN,t0,t1,t6,t7);
+  Serial.println(save);
+  experimento ++;
+  
+    
+  //delay(200);
 
 }
